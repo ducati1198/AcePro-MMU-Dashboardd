@@ -418,7 +418,7 @@ createApp({
         // Load saved layout from localStorage
         this.loadCardLayout();
         
-        // NEW: Automatically load settings from printer on page load
+        // Automatically load settings from printer on page load
         this.loadFromPrinter().catch(() => {
             // Silently fail if file doesn't exist – that's fine
             if (ACE_DASHBOARD_CONFIG?.debug) console.log('No saved settings on printer');
@@ -2240,7 +2240,9 @@ createApp({
                 layout: {
                     positions: this.cardPositions,
                     sizes: this.cardSizes
-                }
+                },
+                // Include mobile expand/collapse state
+                cardExpanded: this.cardExpanded
             };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -2308,6 +2310,11 @@ createApp({
                     
                     this.saveCardLayout();
                 }
+
+                // Restore mobile expand/collapse state
+                if (data.cardExpanded) {
+                    this.cardExpanded = data.cardExpanded;
+                }
                 
                 this.showNotification('Settings and layout imported successfully', 'success');
                 this.loadStatus();
@@ -2323,7 +2330,7 @@ createApp({
             const filename = 'ace_dashboard_settings.json';
             const root = 'config';  // Moonraker's config directory
 
-            // Prepare data (same structure as export)
+            // Prepare data (same structure as export, including cardExpanded)
             const data = {
                 instances: this.instancesPanels.map(inst => ({
                     index: inst.index,
@@ -2338,7 +2345,8 @@ createApp({
                 layout: {
                     positions: this.cardPositions,
                     sizes: this.cardSizes
-                }
+                },
+                cardExpanded: this.cardExpanded
             };
 
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -2351,11 +2359,12 @@ createApp({
                     method: 'POST',
                     body: formData
                 });
-                const result = await response.json();
-                if (result.result) {
+                
+                if (response.ok) {
                     this.showNotification('Settings saved to printer successfully', 'success');
                 } else {
-                    throw new Error(result.error?.message || 'Upload failed');
+                    const errorText = await response.text();
+                    throw new Error(errorText || `HTTP ${response.status}`);
                 }
             } catch (error) {
                 console.error('Save to printer error:', error);
@@ -2411,12 +2420,17 @@ createApp({
                     this.saveCardLayout(); // also save to localStorage
                 }
 
+                // Restore mobile expand/collapse state
+                if (data.cardExpanded) {
+                    this.cardExpanded = data.cardExpanded;
+                }
+
                 this.showNotification('Settings loaded from printer successfully', 'success');
                 this.loadStatus(); // refresh status
             } catch (error) {
                 console.error('Load from printer error:', error);
                 // Only show error if it's not a 404 (file not found)
-                if (error.message !== 'HTTP 404') {
+                if (!error.message.includes('404')) {
                     this.showNotification('Failed to load from printer: ' + error.message, 'error');
                 }
             }

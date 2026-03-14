@@ -22,7 +22,6 @@ git clone -b main https://github.com/ducati1198/acepro-mmu-dashboard
 
 cd ~/acepro_mmu_dashboard
 
-Make it executable:
 chmod +x install.sh
 
 Run it:

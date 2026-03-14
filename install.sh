@@ -175,15 +175,45 @@ main() {
     local restart_moonraker=0
 
     # ========================================================================
-    # Step 1: Gather user input
+    # Step 1: Determine source directory
     # ========================================================================
     
-    print_info "Gathering installation parameters...\n"
-    print_info "Installer source directory: $SCRIPT_DIR"
-    print_info "Source web files: $SCRIPT_DIR/web/"
-    print_info "Source moonraker component: $SCRIPT_DIR/moonraker/ace_status.py"
+    print_info "Locating ACE Dashboard source files..."
+    
+    # Default: assume the script is in the root of the repo and source files are in acepro_dashboard/
+    DEFAULT_SOURCE_DIR="$SCRIPT_DIR/acepro_dashboard"
+    
+    # Check if the default exists; if not, try SCRIPT_DIR itself
+    if [ -d "$DEFAULT_SOURCE_DIR/web" ] && [ -d "$DEFAULT_SOURCE_DIR/moonraker" ]; then
+        SOURCE_DIR="$DEFAULT_SOURCE_DIR"
+        print_success "Found source files in $SOURCE_DIR"
+    elif [ -d "$SCRIPT_DIR/web" ] && [ -d "$SCRIPT_DIR/moonraker" ]; then
+        SOURCE_DIR="$SCRIPT_DIR"
+        print_success "Found source files in $SOURCE_DIR"
+    else
+        print_warning "Could not automatically locate the 'web' and 'moonraker' folders."
+        SOURCE_DIR=$(prompt_input "Please enter the full path to the directory containing 'web' and 'moonraker' subfolders" "$DEFAULT_SOURCE_DIR")
+    fi
 
-    # 1.1 Ask about Mainsail
+    # Validate that web/ and moonraker/ exist under SOURCE_DIR
+    if [ ! -d "$SOURCE_DIR/web" ]; then
+        print_error "web directory not found at $SOURCE_DIR/web"
+        exit 1
+    fi
+    if [ ! -d "$SOURCE_DIR/moonraker" ]; then
+        print_error "moonraker directory not found at $SOURCE_DIR/moonraker"
+        exit 1
+    fi
+
+    # ========================================================================
+    # Step 2: Gather user input for target locations
+    # ========================================================================
+    
+    print_info "Installation source confirmed: $SOURCE_DIR"
+    print_info "Source web files: $SOURCE_DIR/web/"
+    print_info "Source moonraker component: $SOURCE_DIR/moonraker/ace_status.py"
+
+    # 2.1 Ask about Mainsail
     if prompt_yes_no "\nInstall dashboard files into Mainsail?"; then
         DEFAULT_MAINSAIL_DIR="$INSTALL_HOME/mainsail"
         MAINSAIL_DIR=$(prompt_input "Mainsail installation directory" "$DEFAULT_MAINSAIL_DIR")
@@ -197,7 +227,7 @@ main() {
         MAINSAIL_DIR=""
     fi
 
-    # 1.2 Ask about Fluidd
+    # 2.2 Ask about Fluidd
     if prompt_yes_no "\nInstall dashboard files into Fluidd?"; then
         DEFAULT_FLUIDD_DIR="$INSTALL_HOME/fluidd"
         FLUIDD_DIR=$(prompt_input "Fluidd installation directory" "$DEFAULT_FLUIDD_DIR")
@@ -211,7 +241,7 @@ main() {
         FLUIDD_DIR=""
     fi
 
-    # 1.3 Ask about Moonraker component
+    # 2.3 Ask about Moonraker component
     if prompt_yes_no "\nInstall Moonraker ACE status component?"; then
         DEFAULT_MOONRAKER_DIR="$INSTALL_HOME/moonraker"
         MOONRAKER_DIR=$(prompt_input "Moonraker installation directory" "$DEFAULT_MOONRAKER_DIR")
@@ -228,7 +258,7 @@ main() {
     fi
 
     # ========================================================================
-    # Step 2: Show summary and ask for confirmation
+    # Step 3: Show summary and ask for confirmation
     # ========================================================================
     
     echo ""
@@ -257,30 +287,30 @@ main() {
     fi
     
     # ========================================================================
-    # Step 3: Link web files to Mainsail/Fluidd
+    # Step 4: Link web files to Mainsail/Fluidd
     # ========================================================================
     
     if [ -n "$MAINSAIL_DIR" ]; then
         print_header "Linking dashboard files into Mainsail"
         for file in ace.html ace-dashboard.js ace-dashboard.css ace-dashboard-config.js favicon.svg; do
-            create_or_replace_symlink "$SCRIPT_DIR/web/$file" "$MAINSAIL_DIR/$file" "Mainsail $file"
+            create_or_replace_symlink "$SOURCE_DIR/web/$file" "$MAINSAIL_DIR/$file" "Mainsail $file"
         done
     fi
     
     if [ -n "$FLUIDD_DIR" ]; then
         print_header "Linking dashboard files into Fluidd"
         for file in ace.html ace-dashboard.js ace-dashboard.css ace-dashboard-config.js favicon.svg; do
-            create_or_replace_symlink "$SCRIPT_DIR/web/$file" "$FLUIDD_DIR/$file" "Fluidd $file"
+            create_or_replace_symlink "$SOURCE_DIR/web/$file" "$FLUIDD_DIR/$file" "Fluidd $file"
         done
     fi
     
     # ========================================================================
-    # Step 4: Install Moonraker component and update config
+    # Step 5: Install Moonraker component and update config
     # ========================================================================
     
     if [ -n "$MOONRAKER_DIR" ]; then
         print_header "Installing Moonraker ACE status component"
-        ACE_STATUS_SOURCE="$SCRIPT_DIR/moonraker/ace_status.py"
+        ACE_STATUS_SOURCE="$SOURCE_DIR/moonraker/ace_status.py"
         ACE_STATUS_TARGET="$MOONRAKER_DIR/moonraker/components/ace_status.py"
         if [ -f "$ACE_STATUS_SOURCE" ]; then
             create_or_replace_symlink "$ACE_STATUS_SOURCE" "$ACE_STATUS_TARGET" "Moonraker ace_status component"
@@ -299,19 +329,19 @@ main() {
     fi
     
     # ========================================================================
-    # Step 5: Set permissions on source web files (ensure they are readable)
+    # Step 6: Set permissions on source web files (ensure they are readable)
     # ========================================================================
     
     print_header "Setting file permissions"
     print_info "Making source web files world-readable (644)..."
-    if chmod 644 "$SCRIPT_DIR"/web/* 2>/dev/null; then
+    if chmod 644 "$SOURCE_DIR"/web/* 2>/dev/null; then
         print_success "Permissions set on web files"
     else
         print_warning "Could not set permissions (maybe files already OK?)"
     fi
     
     # ========================================================================
-    # Step 6: Restart Moonraker if needed
+    # Step 7: Restart Moonraker if needed
     # ========================================================================
     
     if [ $moonraker_changed -eq 1 ]; then
@@ -332,7 +362,7 @@ main() {
     fi
     
     # ========================================================================
-    # Step 7: Installation complete
+    # Step 8: Installation complete
     # ========================================================================
     
     print_header "Installation Complete!"
@@ -349,10 +379,10 @@ Next steps:
      http://<your-printer-ip>/ace.html
 
   2. If needed, adjust the API host in ace-dashboard-config.js
-     (edit the file at its source location: $SCRIPT_DIR/web/ace-dashboard-config.js)
+     (edit the file at its source location: $SOURCE_DIR/web/ace-dashboard-config.js)
 
   3. (Optional) Review the provided nginx configuration snippet:
-     $SCRIPT_DIR/web/ace_dashboard.nginx.conf
+     $SOURCE_DIR/web/ace_dashboard.nginx.conf
      This can be used if you need to proxy Moonraker on the same host.
 
   4. Enjoy controlling your ACE units from the browser!
